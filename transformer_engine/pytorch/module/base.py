@@ -128,7 +128,7 @@ def initialize_ub(
         "qkv_fprop", "qkv_dgrad", "proj_dgrad", "fc1_fprop", "fc1_dgrad", "fc2_dgrad"
     ]
     if bool(int(os.getenv("NVTE_UB_FP8_RS", "0"))):
-        fp8_buf.append ("proj_fprop")
+        fp8_buf += ["proj_fprop", "fc2_fprop"]
     # Default overlap methods for layers
     methods = {
         "ring_exchange":["qkv_fprop", "fc1_fprop", "proj_dgrad", "fc2_dgrad"],

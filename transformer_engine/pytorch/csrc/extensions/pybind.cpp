@@ -135,7 +135,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     .def("get_ubuf_output", &ubuf::UbufP2PCommOverlap::get_ubuf_output)
     .def("is_fp8_ubuf", &ubuf::UbufP2PCommOverlap::is_fp8_ubuf)
     .def("is_atomic_gemm", &ubuf::UbufP2PCommOverlap::is_atomic_gemm)
-    .def("is_p2p_overlap", &ubuf::UbufP2PCommOverlap::is_p2p_overlap);
+    .def("is_p2p_overlap", &ubuf::UbufP2PCommOverlap::is_p2p_overlap)
+    .def("set_ubuf_scale_inv", &ubuf::UbufP2PCommOverlap::set_ubuf_scale_inv);
 #else  // NVTE_WITH_USERBUFFERS
   m.def("UbufOverlapAlgo", &placeholder, "Dummy function for python side annotations");
   m.def("UbufCommOverlap", &placeholder, "Dummy function for python side annotations");

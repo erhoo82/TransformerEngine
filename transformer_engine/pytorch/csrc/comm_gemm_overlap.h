@@ -537,12 +537,11 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
   int _math_sms;
   int _self_chunk_id;
   void *_ubuf_ptr;
-  //void *_ubuf2_ptr = nullptr;
-  //torch::Tensor _ubuf, _ubuf2;
   torch::Tensor _ubuf;
   torch::Tensor counter;
   torch::Tensor _empty_tensor;
-  //std::vector<torch::Tensor> _ubufs, _ubufs2;
+  torch::Tensor _ubuf_scale_inv;
+  bool _ubuf_scale_inv_initialized;
   std::vector<torch::Tensor> _ubufs;
   at::cuda::CUDAStream _stream_send = at::cuda::getStreamFromPool(true);
   at::cuda::CUDAStream _stream_recv = at::cuda::getStreamFromPool(true);
@@ -618,6 +617,7 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
     _rank_round_tp = (rank / tp_size) * tp_size;
     _next_rank = (tp_size + rank + 1) % tp_size + _rank_round_tp;
     _prev_rank = (tp_size + rank + -1) % tp_size + _rank_round_tp;
+    _ubuf_scale_inv_initialized = false;
 
     _atomic_gemm = atomic_gemm;
     if (_atomic_gemm) {
@@ -1127,9 +1127,17 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
 
     // Reduce GEMM output chunks
     char *reduce_buf_ptr = reinterpret_cast<char *>(_ubufs[_tp_size - 1].data_ptr());
-    torch::Tensor reduce_buf = torch::from_blob(
-      reduce_buf_ptr, {_tp_size, _ubufs[0].size(0), _ubufs[0].size(1)}, _ubuf.options());
-    torch::sum_out(rs_output, reduce_buf, 0);
+    if (_ubuf.element_size() == 1 && rs_output.element_size() == 2) {
+      assert(_ubuf_scale_inv_initialized);
+      float *d_scale_inv_ptr = reinterpret_cast<float *>(_ubuf_scale_inv.data_ptr());
+      char *rs_output_ptr = reinterpret_cast<char *>(rs_output.data_ptr());
+      reduce_fp8_in_bf16_out<__nv_fp8_e4m3>(reduce_buf_ptr, rs_output_ptr, d_scale_inv_ptr,
+                             _tp_size, _ubufs[0].numel(), (cudaStream_t) stream_main);
+    } else {
+      torch::Tensor reduce_buf = torch::from_blob(
+        reduce_buf_ptr, {_tp_size, _ubufs[0].size(0), _ubufs[0].size(1)}, _ubuf.options());
+      torch::sum_out(rs_output, reduce_buf, 0);
+    }
   }
 
   /*
@@ -1165,6 +1173,11 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
     int output_c_dim0 = (_comm_type == COMM_TYPE::AG) ? _ubuf.size(0) : _ubuf.size(0) / _tp_size;
     int output_c_dim1 = _ubuf.size(1);
     return torch::from_blob(ubuf_wt_ptr, {output_c_dim0, output_c_dim1}, _ubuf.options());
+  }
+
+  void set_ubuf_scale_inv(const torch::Tensor &scale_inv) {
+    _ubuf_scale_inv = scale_inv;
+    _ubuf_scale_inv_initialized = true;
   }
 
   bool is_fp8_ubuf() { return (_ubuf.element_size() == 1); }
