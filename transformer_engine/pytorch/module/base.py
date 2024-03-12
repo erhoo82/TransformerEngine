@@ -137,6 +137,17 @@ def initialize_ub(
     }
     layers_with_reduce_scatter = ["proj_fprop", "fc2_fprop", "qkv_wgrad", "fc1_wgrad"]
 
+    # AG-RS overlap pairs of layers forming a tensor-parallel block
+    ag_rs_pairs = {"qkv_fprop":"proj_fprop", "fc1_fprop":"fc2_fprop"}
+    rs_ag_pairs = {v : k for k, v in ag_rs_pairs.items()}
+    use_atomic_ring_exchange = []
+    assert_massage = (
+        "Atomic GEMM with `ring_exchange` method shuffles GEMM output chunks and "
+        "un-suffles them. Both the GEMMs with AG and RS overlap belonging the same TP "
+        "block (e.g., qkv/fprop and proj/fprop) should use `atomic gemm` and "
+        "`ring_exhcnage`. However, one of the layers didn't use same method."
+    )
+
     def get_method(name):
         for method, names in methods.items():
             if name in names:
@@ -159,10 +170,22 @@ def initialize_ub(
                 "Atomic gemm uses a beta API from cublas and is not tested for all use cases."
             )
             assert use_fp8, "AtomicGemm overlap supported only for FP8 GEMM."
-            if method == "bulk":
+            if method == 'bulk':
                 warnings.warn("Atoimic GEMM is not needed for a bulk overlap.")
                 atomic_gemm = 0
-        if not is_reduce_scatter:
+        # Force to use the pair of AG and RS overlap to use same
+        # atomic GEMM + p2p ring-exchange methods.
+        if atomic_gemm and method == "ring_exchange":
+            if name in ag_rs_pairs:
+                use_atomic_ring_exchange += [name, ag_rs_pairs[name]]
+        if is_reduce_scatter:
+            if name in use_atomic_ring_exchange:
+                assert (atomic_gemm and method == "ring_exchange", assert_massage)
+            else:
+                if atomic_gemm and method == "ring_exchange":
+                    assert (rs_ag_pairs[name] not in use_atomic_ring_exchange, assert_massage)
+
+        if not is_reduce_scatter and method != 'pipeline':
             assert (
                 method != 'pipeline', f"`pipeline` overlap method is supported for AllGather"
             )
