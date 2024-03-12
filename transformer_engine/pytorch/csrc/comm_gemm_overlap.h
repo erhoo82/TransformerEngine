@@ -1032,8 +1032,10 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
       int recv_rank = (_tp_size + _tp_id - i) % _tp_size + _rank_round_tp;
 
       consumer(counter_ptr, send_chunk_id, (cudaStream_t)_stream_recv);
-      userbuffers_sendrecv(_ub_reg, _ub_reg, send_offset, recv_offset, comm_bytes, _ub_comm,
-                           send_rank, recv_rank, (cudaStream_t)_stream_recv);
+      userbuffers_send(_ub_reg, send_offset, _ub_reg, recv_offset, comm_bytes,
+                           _ub_comm, send_rank, (cudaStream_t) _stream_recv);
+      userbuffers_recv(_ub_reg, send_offset, _ub_reg, recv_offset, comm_bytes,
+                           _ub_comm, recv_rank, (cudaStream_t) _stream_recv);
     }
     CHECK_CUDA(cudaEventRecord(_stop_recv, (cudaStream_t) _stream_recv));
     CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t) stream_main, _stop_recv, 0));

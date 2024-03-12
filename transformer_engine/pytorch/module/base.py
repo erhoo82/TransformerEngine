@@ -158,13 +158,20 @@ def initialize_ub(
             warnings.warn(
                 "Atomic gemm uses a beta API from cublas and is not tested for all use cases."
             )
-            assert use_fp8, "AtomicGemm overlap supported only for FP8 GEMM."
-            if method == "bulk":
-                warnings.warn("Atoimic GEMM is not needed for a bulk overlap.")
+            assert use_fp8, "Atomic GEMM overlap supported only for FP8 GEMM."
+            if is_reduce_scatter and method == "ring_exchange":
+                raise ValueError(
+                    "Atomic GEMM is not supported for ReduceScatter with `ring_exchange` method."
+                )
+            if method == 'bulk':
+                warnings.warn(
+                    "Atoimic GEMM overlap is supported for a bulk overlap."
+                    "Defaulting to atomic_gemm=False."
+                )
                 atomic_gemm = 0
-        if not is_reduce_scatter:
-            assert (
-                method != 'pipeline', f"`pipeline` overlap method is supported for AllGather"
+        if not is_reduce_scatter and method == 'pipeline':
+            raise ValueError(
+                "`pipeline` overlap method is not supported for AllGather."
             )
 
         dtype = torch.uint8 if (use_fp8 and name in fp8_buf) else torch.bfloat16
