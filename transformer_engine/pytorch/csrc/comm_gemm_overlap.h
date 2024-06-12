@@ -709,6 +709,14 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
       int send_offset = comm_bytes * send_chunk_id;
       int recv_offset = comm_bytes * recv_chunk_id;
 
+      const char *env_gemm_first = std::getenv("NVTE_AG_GEMM_FIRST");
+      if (env_gemm_first != nullptr && env_gemm_first[0] == '1') {
+        te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
+                        D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
+                        workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
+                        _math_sms, 0, _tp_size, false, counter);
+      }
+
       const char *env_p = std::getenv("NVTE_AG_P2P_MULTI_ATOMIC");
       if (env_p != nullptr && env_p[0] == '1') {
         if (i == 0) {
@@ -723,11 +731,13 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
                          _ub_comm, _prev_rank, (cudaStream_t) _stream_recv);
         producer(counter_ptr, recv_chunk_id, (cudaStream_t)_stream_recv);
       }
-      if (i == 0) {
-        te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
-                       D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
-                       workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
-                       _math_sms, 0, _tp_size, false, counter);
+      if (env_gemm_first == nullptr || env_gemm_first[0] == '0') {
+        if (i == 0) {
+          te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
+                        D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
+                        workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
+                        _math_sms, 0, _tp_size, false, counter);
+        }
       }
     }
 
