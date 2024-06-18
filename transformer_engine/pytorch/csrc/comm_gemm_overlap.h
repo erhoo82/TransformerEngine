@@ -745,12 +745,20 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
     if (B_copy.numel() > 0) {
       assert(B_copy.numel() == _ubufs[_self_chunk_id].numel());
       assert(B_copy.element_size() == _ubufs[_self_chunk_id].element_size());
-      CHECK_CUDA(cudaMemcpyAsync(B_copy.data_ptr(), _ubufs[_self_chunk_id].data_ptr(),
-                                 _ubufs[_self_chunk_id].numel() *
-                                 _ubufs[_self_chunk_id].element_size(),
-                                 cudaMemcpyDeviceToDevice, (cudaStream_t)_stream_send));
-      CHECK_CUDA(cudaEventRecord(_stop_send, (cudaStream_t)_stream_send));
-      CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t)stream_main, _stop_send, 0));
+      const char *env_delay_d2d_copy = std::getenv("NVTE_DELAY_D2D_COPY");
+      if (env_delay_d2d_copy != nullptr && env_delay_d2d_copy[0] == '1') {
+        CHECK_CUDA(cudaMemcpyAsync(B_copy.data_ptr(), _ubufs[_self_chunk_id].data_ptr(),
+                                  _ubufs[_self_chunk_id].numel() *
+                                  _ubufs[_self_chunk_id].element_size(),
+                                  cudaMemcpyDeviceToDevice, (cudaStream_t)stream_main));
+      } else {
+        CHECK_CUDA(cudaMemcpyAsync(B_copy.data_ptr(), _ubufs[_self_chunk_id].data_ptr(),
+                                  _ubufs[_self_chunk_id].numel() *
+                                  _ubufs[_self_chunk_id].element_size(),
+                                  cudaMemcpyDeviceToDevice, (cudaStream_t)_stream_send));
+        CHECK_CUDA(cudaEventRecord(_stop_send, (cudaStream_t)_stream_send));
+        CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t)stream_main, _stop_send, 0));
+      }
     }
 
     // Reset atomic counters
