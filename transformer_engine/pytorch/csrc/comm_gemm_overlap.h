@@ -731,15 +731,21 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
                          _ub_comm, _prev_rank, (cudaStream_t) _stream_recv);
         producer(counter_ptr, recv_chunk_id, (cudaStream_t)_stream_recv);
       }
-      if (env_gemm_first == nullptr || env_gemm_first[0] == '0') {
-        if (i == 0) {
-          te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
+//      if (env_gemm_first == nullptr || env_gemm_first[0] == '0') {
+//        if (i == 0) {
+//          te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
+//                        D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
+//                        workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
+//                        _math_sms, 0, _tp_size, false, counter);
+//        }
+//      }
+    }
+    CHECK_CUDA(cudaEventRecord(_start_compute, (cudaStream_t)_stream_recv));
+    CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t)stream_main, _start_compute, 0));
+    te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
                         D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
                         workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
                         _math_sms, 0, _tp_size, false, counter);
-        }
-      }
-    }
 
     // Store the input activation for backprop
     if (B_copy.numel() > 0) {
