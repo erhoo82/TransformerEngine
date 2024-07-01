@@ -692,6 +692,12 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
 
     // Catch up the default torch stream
     at::cuda::CUDAStream stream_main = at::cuda::getCurrentCUDAStream();
+
+    for (int i = 0; i < _tp_size - 1; i++) {
+      int recv_chunk_id = i + 1;
+      producer(counter_ptr, recv_chunk_id, (cudaStream_t)stream_main);
+    }
+
     CHECK_CUDA(cudaEventRecord(_start_compute, (cudaStream_t)stream_main));
     CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t)_stream_send, _start_compute, 0));
     CHECK_CUDA(cudaStreamWaitEvent((cudaStream_t)_stream_recv, _start_compute, 0));
@@ -729,7 +735,7 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
                          _ub_comm, _next_rank, (cudaStream_t) _stream_recv);
         userbuffers_recv(_ub_reg, send_offset, _ub_reg, recv_offset, comm_bytes,
                          _ub_comm, _prev_rank, (cudaStream_t) _stream_recv);
-        producer(counter_ptr, recv_chunk_id, (cudaStream_t)_stream_recv);
+        //producer(counter_ptr, recv_chunk_id, (cudaStream_t)_stream_recv);
       }
       if (env_gemm_first == nullptr || env_gemm_first[0] == '0') {
         if (i == 0) {
