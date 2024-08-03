@@ -736,7 +736,8 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
           te_atomic_gemm(A, A_scale_inverse, A_type, transa, _ubuf, B_scale_inverse, B_type, transb,
                         D, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
                         workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
-                        _math_sms, 0, _tp_size, false, counter);
+                        //_math_sms, 0, _tp_size, false, counter);
+                        _math_sms, _tp_size, 0, false, counter);
         }
       }
     }
@@ -1003,7 +1004,8 @@ struct UbufP2PCommOverlap : torch::CustomClassHolder, UbufBase {
     te_atomic_gemm(A, A_scale_inverse, A_type, transa, B, B_scale_inverse, B_type, transb,
                     _ubuf, D_scale, D_type, D_amax, bias, bias_type, pre_gelu_out, grad,
                     workspace_chunk, workspace_size_chunk, accumulate, use_split_accumulator,
-                    _math_sms, 0, _tp_size, true, counter);
+                    //_math_sms, 0, _tp_size, true, counter);
+                    _math_sms, _tp_size, 0, true, counter);
 
     // P2P communication chunk
     for (int i = 1; i < _tp_size; i++) {
